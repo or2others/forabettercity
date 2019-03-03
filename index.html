@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1.0, user-scalable=no"/>
+    <title>Facade View</title>
+    <!-- CSS  -->
+    <link href="css/swiper.css" type="text/css" rel="stylesheet"/>
+    <link href="css/style.css" type="text/css" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/earlyaccess/notosanskr" rel="stylesheet">
+    <style>
+        *{
+            margin: 0px;
+            padding: 0px;
+        }
+        html, body {
+            color: rgb(255,255,255);
+            font-family: 'Noto Sans KR', sans-serif;
+            font-weight: 200;
+        }
+        .map-container{
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map" class="map-container"></div>
+
+    <script src="js/jquery.min.js"></script>
+    <script src="js/swiper.jquery.min.js"></script>
+    <script src="js/jquery.touchSwipe.min.js"></script>
+    <script>
+        var map;
+        function initMap(){
+            map = new Tmap.Map({
+                div:'map'
+            });
+        }
+        $(document).ready(function() {
+            initMap();
+        });
+    </script>
+    <script src="https://api2.sktelecom.com/tmap/js?version=1&format=javascript&appKey=8e88ce86-83f7-46b5-9272-16b581b04ae8"></script>
+
+</body>
+</html>
