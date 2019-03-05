@@ -31,6 +31,9 @@
             height: 100%;
             background-color: rgba(0,0,0,0.9)
         }
+        #lineStyle{
+            width: 1px;
+        }
     </style>
 </head>
 <body>
@@ -47,6 +50,7 @@
         var markerLayer;
         var mapBoundary;
         var tData;
+        var vectorLayer;
 
         function initMap(){
             map = new Tmap.Map({
@@ -61,9 +65,9 @@
             map.events.register("click", map, clickMap);
             mapBoundary = map.getExtent().transform("EPSG:3857", "EPSG:4326");
             tData = new Tmap.TData();
-
-
+            vectorLayer = new Tmap.Layer.Vector("vectorLayerID");
         }
+
         $(document).ready(function() {
             initMap();
             map.ctrl_nav.disableZoomWheel();
@@ -83,15 +87,19 @@
 
         function createVehiArray(count){
             for(var i=0 ; i<count ; i++){
-                vehiArray.push(addVehicle());
+                vehiArray.push(addVehicle(i));
             }
+        }
+
+        function updateRoute(index){
+            vehiArray[index]
         }
 
 
 
         // 차량 객체 생성
-        function addVehicle(){
-            var vehicleObj = new Vehicle();
+        function addVehicle(i){
+            var vehicleObj = new Vehicle(i);
             vehicleObj.initVehicle();
             vehicleObj.initDestination();
             vehicleObj.requestRoute();
@@ -101,17 +109,26 @@
 
 
         // 차량 Class 정의
-        function Vehicle(){
+        function Vehicle(index){
+            this.index              = index;
             this.lat                = (Math.random()*(mapBoundary.right-mapBoundary.left))+mapBoundary.left;
             this.lng                = (Math.random()*(mapBoundary.bottom-mapBoundary.top)) + mapBoundary.top;
             this.currentLocation    = new Tmap.LonLat(this.lat, this.lng).transform("EPSG:4326", "EPSG:3857");
             this.destination;
             this.marker     = new Tmap.Marker(this.currentLocation);
+            this.selectFlag = false;
+            this.routeVector;
+            this.tData = new Tmap.TData();
+            this.tData.index = index;
+
         }
 
         Vehicle.prototype = {
             initVehicle  : function(){
+                this.marker.index = this.index;
                 markerLayer.addMarker(this.marker);
+        		this.marker.events.register("click", marker, this.toggleRoute);
+
             },
             initDestination : function(){
                 var lat = (Math.random()*(mapBoundary.right-mapBoundary.left))+mapBoundary.left;
@@ -119,19 +136,26 @@
                 this.desination = new Tmap.LonLat(lat, lng).transform("EPSG:4326", "EPSG:3857");
             },
             requestRoute : function(){
-                tData.getRoutePlan(this.currentLocation, this.desination, {reqCoordType:"EPSG3857",resCoordType:"EPSG3857"});
-                tData.events.register("onComplete", tData, this.initRoute);
-                tData.events.register("onProgress", tData, console.log("onProgress"));
-                tData.events.register("onError", tData, console.log("onError"));
+                this.tData.getRoutePlan(this.currentLocation, this.desination, {reqCoordType:"EPSG3857",resCoordType:"EPSG3857"});
+                this.tData.events.register("onComplete", this.tData, this.initRoute);
+                this.tData.events.register("onProgress", this.tData, console.log("onProgress"));
+                this.tData.events.register("onError", this.tData, console.log("onError"));
 
             },
             initRoute : function(){
                 console.log(this.responseXML); //xml로 데이터를 받은 정보들을 콘솔창에서 확인할 수 있습니다.
-
-                var kmlForm = new Tmap.Format.KML({extractStyles:true}).read(this.responseXML);
-                var vectorLayer = new Tmap.Layer.Vector("vectorLayerID");
-                vectorLayer.addFeatures(kmlForm);
-                map.addLayer(vectorLayer);
+                vehiArray[this.index].routeVector = new Tmap.Format.KML({extractStyles:false}).read(this.responseXML);
+            },
+            toggleRoute : function(){
+                console.log(vehiArray[this.index]);
+                if(vehiArray[this.index].selectFlag==false){
+                    vectorLayer.addFeatures(vehiArray[this.index].routeVector);
+                    map.addLayer(vectorLayer);
+                    vehiArray[this.index].selectFlag=true;
+                }else{
+                    map.removeLayer(vectorLayer);
+                    vehiArray[this.index].selectFlag=false;
+                }
             }
         }
 
