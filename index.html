@@ -23,25 +23,120 @@
             width: 100%;
             height: 100%;
         }
+        .map-mask{
+            position: absolute;
+            top: 0px;
+            left: 0px;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.9)
+        }
     </style>
 </head>
 <body>
 
     <div id="map" class="map-container"></div>
+    <div class="map-mask"></div>
 
     <script src="js/jquery.min.js"></script>
     <script src="js/swiper.jquery.min.js"></script>
     <script src="js/jquery.touchSwipe.min.js"></script>
     <script>
         var map;
+        var marker;
+        var markerLayer;
+        var mapBoundary;
+        var tData;
+
         function initMap(){
             map = new Tmap.Map({
                 div:'map'
             });
+
+            var lonlat = new Tmap.LonLat(14129410, 4507355)
+            map.setCenter(lonlat, 14);
+
+            markerLayer = new Tmap.Layer.Markers();
+            map.addLayer(markerLayer);
+            map.events.register("click", map, clickMap);
+            mapBoundary = map.getExtent().transform("EPSG:3857", "EPSG:4326");
+            tData = new Tmap.TData();
+
+
         }
         $(document).ready(function() {
             initMap();
+            map.ctrl_nav.disableZoomWheel();
+            map.ctrl_nav.dragPan.deactivate();
         });
+
+        function clickMap(e){
+            markerLayer.removeMarker(marker); // 기존 마커 삭제
+            var lonlat = map.getLonLatFromViewPortPx(e.xy).transform("EPSG:3857", "EPSG:4326");
+            marker = new Tmap.Marker(lonlat.transform("EPSG:4326", "EPSG:3857"));
+            markerLayer.addMarker(marker);
+        }
+
+        // 입력한 숫자대로 차량 객체 생성
+
+        var vehiArray = new Array();
+
+        function createVehiArray(count){
+            for(var i=0 ; i<count ; i++){
+                vehiArray.push(addVehicle());
+            }
+        }
+
+
+
+        // 차량 객체 생성
+        function addVehicle(){
+            var vehicleObj = new Vehicle();
+            vehicleObj.initVehicle();
+            vehicleObj.initDestination();
+            vehicleObj.requestRoute();
+            return vehicleObj;
+        }
+
+
+
+        // 차량 Class 정의
+        function Vehicle(){
+            this.lat                = (Math.random()*(mapBoundary.right-mapBoundary.left))+mapBoundary.left;
+            this.lng                = (Math.random()*(mapBoundary.bottom-mapBoundary.top)) + mapBoundary.top;
+            this.currentLocation    = new Tmap.LonLat(this.lat, this.lng).transform("EPSG:4326", "EPSG:3857");
+            this.destination;
+            this.marker     = new Tmap.Marker(this.currentLocation);
+        }
+
+        Vehicle.prototype = {
+            initVehicle  : function(){
+                markerLayer.addMarker(this.marker);
+            },
+            initDestination : function(){
+                var lat = (Math.random()*(mapBoundary.right-mapBoundary.left))+mapBoundary.left;
+                var lng = (Math.random()*(mapBoundary.bottom-mapBoundary.top)) + mapBoundary.top;
+                this.desination = new Tmap.LonLat(lat, lng).transform("EPSG:4326", "EPSG:3857");
+            },
+            requestRoute : function(){
+                tData.getRoutePlan(this.currentLocation, this.desination, {reqCoordType:"EPSG3857",resCoordType:"EPSG3857"});
+                tData.events.register("onComplete", tData, this.initRoute);
+                tData.events.register("onProgress", tData, console.log("onProgress"));
+                tData.events.register("onError", tData, console.log("onError"));
+
+            },
+            initRoute : function(){
+                console.log(this.responseXML); //xml로 데이터를 받은 정보들을 콘솔창에서 확인할 수 있습니다.
+
+                var kmlForm = new Tmap.Format.KML({extractStyles:true}).read(this.responseXML);
+                var vectorLayer = new Tmap.Layer.Vector("vectorLayerID");
+                vectorLayer.addFeatures(kmlForm);
+                map.addLayer(vectorLayer);
+            }
+        }
+
+
+
     </script>
     <script src="https://api2.sktelecom.com/tmap/js?version=1&format=javascript&appKey=8e88ce86-83f7-46b5-9272-16b581b04ae8"></script>
 
