@@ -60,12 +60,12 @@
             var lonlat = new Tmap.LonLat(14129410, 4507355)
             map.setCenter(lonlat, 14);
 
-            markerLayer = new Tmap.Layer.Markers();
-            map.addLayer(markerLayer);
             map.events.register("click", map, clickMap);
             mapBoundary = map.getExtent().transform("EPSG:3857", "EPSG:4326");
             tData = new Tmap.TData();
             vectorLayer = new Tmap.Layer.Vector("vectorLayerID");
+            markerLayer = new Tmap.Layer.Markers();
+            map.addLayer(markerLayer);
         }
 
         $(document).ready(function() {
@@ -91,10 +91,47 @@
             }
         }
 
-        function updateRoute(index){
-            vehiArray[index]
+        function updateRoute(){
+            for(var i=0 ; i<vehiArray.length ; i++){
+                vehiArray[i].requestRoute();
+            }
         }
 
+        var headers = new Array();
+        headers["appKey"]="8e88ce86-83f7-46b5-9272-16b581b04ae8";
+
+        // 이걸로 다 뜯어고치자
+        function requestByAjax(){
+
+            $.ajax({
+                method:"POST",
+                headers : headers,
+                url:"https://api2.sktelecom.com/tmap/routes?version=2&format=json",
+                    data:{
+                    startX : "126.9850380932383",
+                    startY : "37.566567545861645",
+                    endX : "127.10331814639885",
+                    endY : "37.403049076341794",
+                    reqCoordType : "WGS84GEO",
+                    resCoordType : "WGS84GEO",
+                    searchOption : 0
+                },
+                success:function(response){
+                    if( response ) {
+                        console.log(response);
+                        var features = response.features;
+                        var coordinates = [];
+                        for(var i in features) {
+                            if( features[i].geometry.type == "Point" ) {
+                                /* 타입이 Point 인 경우만 출력 */
+                                coordinates = features[i].geometry.coordinates;
+                                console.log("lon :" + coordinates[0] + " / lat :" + coordinates[1]);
+                            }
+                        }
+                    }
+                }
+            })
+        };
 
 
         // 차량 객체 생성
@@ -105,7 +142,6 @@
             vehicleObj.requestRoute();
             return vehicleObj;
         }
-
 
 
         // 차량 Class 정의
@@ -138,17 +174,18 @@
             requestRoute : function(){
                 this.tData.getRoutePlan(this.currentLocation, this.desination, {reqCoordType:"EPSG3857",resCoordType:"EPSG3857"});
                 this.tData.events.register("onComplete", this.tData, this.initRoute);
-                this.tData.events.register("onProgress", this.tData, console.log("onProgress"));
-                this.tData.events.register("onError", this.tData, console.log("onError"));
+                this.tData.events.register("onProgress", this.tData, console.log(this.index + ": onProgress"));
+                this.tData.events.register("onError", this.tData, console.log(this.index + ": onError"));
 
             },
             initRoute : function(){
-                console.log(this.responseXML); //xml로 데이터를 받은 정보들을 콘솔창에서 확인할 수 있습니다.
+                console.log(this.index + " : " +this.responseXML); //xml로 데이터를 받은 정보들을 콘솔창에서 확인할 수 있습니다.
                 vehiArray[this.index].routeVector = new Tmap.Format.KML({extractStyles:false}).read(this.responseXML);
             },
             toggleRoute : function(){
                 console.log(vehiArray[this.index]);
                 if(vehiArray[this.index].selectFlag==false){
+                    console.log(vehiArray[this.index].selectFlag);
                     vectorLayer.addFeatures(vehiArray[this.index].routeVector);
                     map.addLayer(vectorLayer);
                     vehiArray[this.index].selectFlag=true;
