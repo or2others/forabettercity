@@ -49,10 +49,14 @@
         var marker;
         var mapBoundary;
         var markerLayer;
+        var requestMarkerLayer;
         var vectorLayer;
+        var virtualVectorLayer;
+        var maskLayer;
         var tData;
         var size;
         var offset;
+        var caIcon;
         var destIcon;
         var resultIndex = 0;
         var headers = new Array();
@@ -65,15 +69,41 @@
 
             var lonlat = new Tmap.LonLat(14129410, 4507355)
             map.setCenter(lonlat, 14);
+            map.events.register("click", map, createNewRequest);
 
-            map.events.register("click", map, clickMap);
+
             mapBoundary = map.getExtent().transform("EPSG:3857", "EPSG:4326");
             tData = new Tmap.TData();
             vectorLayer = new Tmap.Layer.Vector("vectorLayerID");
+            virtualVectorLayer = new Tmap.Layer.Vector("vectorLayerID");
             markerLayer = new Tmap.Layer.Markers();
-            map.addLayer(markerLayer);
+            requestMarkerLayer = new Tmap.Layer.Markers();
 
+            var maskStyle = {
+                fillColor:'FF0000',
+                fillOpacity:0.8
+            };
+
+            var pointlist = [];
+                pointlist.push(new Tmap.Geometry.Point(mapBoundary.left, mapBoundary.top).transform("EPSG:4326", "EPSG:3857"));
+                pointlist.push(new Tmap.Geometry.Point(mapBoundary.right, mapBoundary.top).transform("EPSG:4326", "EPSG:3857"));
+                pointlist.push(new Tmap.Geometry.Point(mapBoundary.right, mapBoundary.bottom).transform("EPSG:4326", "EPSG:3857"));
+                pointlist.push(new Tmap.Geometry.Point(mapBoundary.left, mapBoundary.bottom).transform("EPSG:4326", "EPSG:3857"));
+                pointlist.push(new Tmap.Geometry.Point(mapBoundary.left, mapBoundary.top).transform("EPSG:4326", "EPSG:3857"));
+
+            var square = new Tmap.Geometry.LinearRing(pointlist);
+            var squareFeature = new Tmap.Feature.Vector(square, null, maskStyle); // 백터 생성
+            maskLayer = new Tmap.Layer.Vector("vectorLayerID");
+            map.addLayer(maskLayer);
+            maskLayer.addFeatures([squareFeature]);
+
+            size = new Tmap.Size(48,48);
+            offset = new Tmap.Pixel(-(size.w/2), -(size.h/2));
+            carIcon = new Tmap.Icon('/img/car.png');
             destIcon = new Tmap.Icon('/img/destination.png');
+
+            map.addLayer(markerLayer);
+            map.addLayer(requestMarkerLayer);
         }
 
         $(document).ready(function() {
@@ -104,7 +134,6 @@
             var vehicleObj = new Vehicle(i);
             vehicleObj.initVehicle();
             vehicleObj.initDestination();
-//            vehicleObj.requestRoute();
             return vehicleObj;
         }
 
@@ -115,7 +144,7 @@
             this.lon                = (Math.random()*(mapBoundary.bottom-mapBoundary.top)) + mapBoundary.top;
             this.currentLocation    = new Tmap.LonLat(this.lat, this.lon).transform("EPSG:4326", "EPSG:3857");
             this.destination;
-            this.marker     = new Tmap.Marker(this.currentLocation);
+            this.marker     = new Tmap.Marker(this.currentLocation, new Tmap.Icon('/img/car.png', size, offset));
             this.selectFlag = false;
             this.route;
             this.routeVector;
@@ -126,8 +155,6 @@
             initVehicle  : function(){
                 this.marker.index = this.index;
                 markerLayer.addMarker(this.marker);
-        		this.marker.events.register("click", marker, this.toggleRoute);
-
             },
             initDestination : function(){
                 var lat = (Math.random()*(mapBoundary.right-mapBoundary.left))+mapBoundary.left;
@@ -186,6 +213,7 @@
                     if(response) {
                         console.log(resultIndex + " : sucess");
                         vehiArray[resultIndex].route = response;
+                        drawRoute(response);
                         setTimeout(function(){requestNext()}, 100);
                     }else{
                         console.log(resultIndex + " : no result");
@@ -215,7 +243,128 @@
         function drawRoute(route){
             var jsonForm = new Tmap.Format.GeoJSON({extractStyles:false}).read(route);
             vectorLayer.addFeatures(jsonForm);
+            vectorLayer.styleMap.styles.default.defaultStyle = {
+                pointRadius : 1,
+                strokeColor: "#ff4474",
+                strokeOpacity: 0.5,
+                strokeWidth: 1,
+                strokeDashstyle: "solid"
+            };
             map.addLayer(vectorLayer);
+        }
+
+        var requestMarker;
+        var newRequestFlag=0;
+
+        // 새로운 경로 요청
+        function createNewRequest(e){
+            if(newRequestFlag==0){
+                createNewStart(e);
+            }else if(newRequestFlag==1){
+                createNewEnd(e);
+            }else{
+                clearRequest();
+            }
+        }
+
+        // 요청 Class 정의
+        function Rider(index){
+            this.currentLocation;
+            this.destination;
+        }
+
+        var rider = new Rider();
+
+
+        // 새로운 출발지
+        function createNewStart(e){
+            newRequestFlag=1;
+            rider.currentLocation = map.getLonLatFromViewPortPx(e.xy).transform("EPSG:3857", "EPSG:4326");
+            var icon = new Tmap.Icon('http://tmapapis.sktelecom.com/upload/tmap/marker/pin_b_m_a.png',{w:24, h:38}, {x: -12, y: -38});
+            requestMarker = new Tmap.Marker(rider.currentLocation.transform("EPSG:4326", "EPSG:3857"), icon);
+            requestMarkerLayer.addMarker(requestMarker);
+        }
+
+        // 새로운 도착지
+        function createNewEnd(e){
+            newRequestFlag=2;
+            rider.desination = map.getLonLatFromViewPortPx(e.xy).transform("EPSG:3857", "EPSG:4326");
+            var icon = new Tmap.Icon('http://tmapapis.sktelecom.com/upload/tmap/marker/pin_b_m_b.png',{w:24, h:38}, {x: -12, y: -38});
+            requestMarker = new Tmap.Marker(rider.desination.transform("EPSG:4326", "EPSG:3857"), icon);
+            requestMarkerLayer.addMarker(requestMarker);
+
+            requestDispatch();
+        }
+
+        // 요청 지우기
+        function clearRequest(){
+            newRequestFlag=0;
+            rider = new Rider();
+            requestMarkerLayer.clearMarkers();
+        }
+
+        // 새로운 요청을 배차하기
+        function requestDispatch(){
+            searchRoute(0);
+        }
+
+        // 다중 경유지 적용해서 확인할 수 있게 수정필요
+        function searchRoute(index){
+            $.ajax({
+                method:"POST",
+                headers : headers,
+                url:"https://api2.sktelecom.com/tmap/routes?version=2&format=json",
+                    data:{
+                    startX : vehiArray[index].currentLocation.lon,
+                    startY : vehiArray[index].currentLocation.lat,
+                    endX : rider.desination.lon,
+                    endY : rider.desination.lat,
+                    reqCoordType : "EPSG3857",
+                    resCoordType : "EPSG3857",
+                    searchOption : 0
+                },
+                success:function(response){
+                    if(response) {
+                        console.log(resultIndex + " : sucess");
+                        vehiArray[resultIndex].route = response;
+                        drawVirtualRoute(response);
+                        setTimeout(function(){searchNext()}, 100);
+                    }else{
+                        console.log(resultIndex + " : no result");
+                        setTimeout(function(){searchNext()}, 100);
+                    }
+                },
+                error:function(){
+                    console.log(resultIndex + " : error");
+                    resultIndex--;
+                    setTimeout(function(){searchNext()}, 500);
+                }
+            })
+        };
+
+        // 하나가 완료되면 다음 객체의 값을 받아오기
+        function searchNext(){
+            resultIndex++;
+            if(resultIndex<vehiArray.length){
+                searchRoute(resultIndex);
+           }else{
+               console.log("finish!!!");
+               resultIndex=0;
+           }
+        }
+
+        // 경로정보로 경로 그리기
+        function drawVirtualRoute(route){
+            var jsonForm = new Tmap.Format.GeoJSON({extractStyles:false}).read(route);
+            virtualVectorLayer.addFeatures(jsonForm);
+            virtualVectorLayer.styleMap.styles.default.defaultStyle = {
+                pointRadius : 1,
+                strokeColor: "#3cffea",
+                strokeOpacity: 0.5,
+                strokeWidth: 2,
+                strokeDashstyle: "solid"
+            };
+            map.addLayer(virtualVectorLayer);
         }
 
 
