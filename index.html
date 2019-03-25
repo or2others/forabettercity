@@ -10,36 +10,17 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link href="https://fonts.googleapis.com/earlyaccess/notosanskr" rel="stylesheet">
     <style>
-        *{
-            margin: 0px;
-            padding: 0px;
-        }
-        html, body {
-            color: rgb(255,255,255);
-            font-family: 'Noto Sans KR', sans-serif;
-            font-weight: 200;
-        }
-        .map-container{
-            width: 100%;
-            height: 100%;
-        }
-        .map-mask{
-            position: absolute;
-            top: 0px;
-            left: 0px;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.9)
-        }
-        #lineStyle{
-            width: 1px;
-        }
+
     </style>
 </head>
 <body>
 
-    <div id="map" class="map-container"></div>
-    <div class="map-mask"></div>
+    <div class="map-container">
+        <div id="map" class="map-container"></div>
+    </div>
+    <div class="map-mask">
+        <div class="progress">0%</div>
+    </div>
 
     <script src="js/jquery.min.js"></script>
     <script src="js/swiper.jquery.min.js"></script>
@@ -59,8 +40,12 @@
         var caIcon;
         var destIcon;
         var resultIndex = 0;
+        var errorCount = 0;
         var headers = new Array();
+        var headersMulti = new Array();
         headers["appKey"]="8e88ce86-83f7-46b5-9272-16b581b04ae8";
+        headersMulti["appKey"]="8e88ce86-83f7-46b5-9272-16b581b04ae8";
+        headersMulti["Content-Type"]="application/json";
 
         function initMap(){
             map = new Tmap.Map({
@@ -196,6 +181,7 @@
 
         // 경로정보를 받아오기
         function requestByAjax(index){
+            $(".map-mask").fadeIn();
             $.ajax({
                 method:"POST",
                 headers : headers,
@@ -214,6 +200,7 @@
                         console.log(resultIndex + " : sucess");
                         vehiArray[resultIndex].route = response;
                         drawRoute(response);
+                        $(".progress").html(Math.floor((resultIndex/vehiArray.length)*100) + "%");
                         setTimeout(function(){requestNext()}, 100);
                     }else{
                         console.log(resultIndex + " : no result");
@@ -234,8 +221,9 @@
             if(resultIndex<vehiArray.length){
                 requestByAjax(resultIndex);
            }else{
-               console.log("finish!!!");
                resultIndex=0;
+               $(".progress").html("100%");
+               $(".map-mask").fadeOut();
            }
         }
 
@@ -306,41 +294,64 @@
         // 새로운 요청을 배차하기
         function requestDispatch(){
             searchRoute(0);
+            $(".progress").html("0%");
+            $(".map-mask").fadeIn();
         }
 
         // 다중 경유지 적용해서 확인할 수 있게 수정필요
         function searchRoute(index){
             $.ajax({
                 method:"POST",
-                headers : headers,
-                url:"https://api2.sktelecom.com/tmap/routes?version=2&format=json",
-                    data:{
-                    startX : vehiArray[index].currentLocation.lon,
-                    startY : vehiArray[index].currentLocation.lat,
-                    endX : rider.desination.lon,
-                    endY : rider.desination.lat,
-                    reqCoordType : "EPSG3857",
-                    resCoordType : "EPSG3857",
-                    searchOption : 0
-                },
+                headers : headersMulti,
+                url:"https://api2.sktelecom.com/tmap/routes/routeSequential30?version=1&format=json",
+                async:false,
+                data:JSON.stringify({
+                    "startName" : "start",
+                    "startX" : String(vehiArray[index].currentLocation.lon),
+                    "startY" : String(vehiArray[index].currentLocation.lat),
+                    "startTime" : "201908011200",
+                    "endName" : "end",
+                    "endX" : String(vehiArray[index].desination.lon),
+                    "endY" : String(vehiArray[index].desination.lat),
+                    "viaPoints" :
+                        [{
+                                 "viaPointId" : "viaStart",
+                                 "viaPointName" : "viaStart",
+                                 "viaX" : String(rider.currentLocation.lon) ,
+                                 "viaY" : String(rider.currentLocation.lat)
+                        },{
+                                 "viaPointId" : "viaEnd",
+                                 "viaPointName" : "viaEnd",
+                                 "viaX" : String(rider.desination.lon) ,
+                                 "viaY" : String(rider.desination.lat)
+                        }],
+                    "reqCoordType" : "EPSG3857", //요청 좌표 타입
+                    "resCoordType" : "EPSG3857",
+                    "searchOption": 0//경로 탐색 옵션 입니다.
+                }),
                 success:function(response){
+                    console.log(response);
                     if(response) {
                         console.log(resultIndex + " : sucess");
                         vehiArray[resultIndex].route = response;
                         drawVirtualRoute(response);
-                        setTimeout(function(){searchNext()}, 100);
+                        $(".progress").html(Math.floor((resultIndex/vehiArray.length)*100) + "%");
+                        setTimeout(function(){searchNext()}, 1000);
                     }else{
                         console.log(resultIndex + " : no result");
-                        setTimeout(function(){searchNext()}, 100);
+                        setTimeout(function(){searchNext()}, 1000);
                     }
                 },
-                error:function(){
-                    console.log(resultIndex + " : error");
+                error:function(request,status,error){
+                    console.log("code:"+request.status+"\n"+"message:"+request.responseText+"\n"+"error:"+error);
                     resultIndex--;
+                    errorCount++;
+                    if(errorCount>50){resultIndex=vehiArray.length}
                     setTimeout(function(){searchNext()}, 500);
                 }
-            })
+            });
         };
+
 
         // 하나가 완료되면 다음 객체의 값을 받아오기
         function searchNext(){
@@ -350,6 +361,9 @@
            }else{
                console.log("finish!!!");
                resultIndex=0;
+               errorCount=0;
+               $(".progress").html("100%");
+               $(".map-mask").fadeOut();
            }
         }
 
@@ -360,14 +374,12 @@
             virtualVectorLayer.styleMap.styles.default.defaultStyle = {
                 pointRadius : 1,
                 strokeColor: "#3cffea",
-                strokeOpacity: 0.5,
+                strokeOpacity: 0.2,
                 strokeWidth: 2,
                 strokeDashstyle: "solid"
             };
             map.addLayer(virtualVectorLayer);
         }
-
-
 
     </script>
     <script src="https://api2.sktelecom.com/tmap/js?version=1&format=javascript&appKey=8e88ce86-83f7-46b5-9272-16b581b04ae8"></script>
