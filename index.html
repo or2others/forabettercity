@@ -291,9 +291,11 @@
             requestMarkerLayer.clearMarkers();
         }
 
+        var altIndex = 0;
+
         // 새로운 요청을 배차하기
         function requestDispatch(){
-            searchRoute(0);
+            searchAlt();
             $(".progress").html("0%");
             $(".map-mask").fadeIn();
         }
@@ -340,41 +342,57 @@
                     "searchOption": 0
                 }),
                 success:function(response){
-                    console.log(response);
+                    console.log(response.properties.totalTime);
                     if(response) {
                         console.log(resultIndex + " : sucess");
-                        vehiArray[resultIndex].route = response;
+                        if(response.properties.totalTime<vehiArray[resultIndex].totalTime || vehiArray[resultIndex].totalTime==undefined){
+                            vehiArray[resultIndex].route = response;
+                            vehiArray[resultIndex].totalTime = response.properties.totalTime;
+                        }
                         drawVirtualRoute(response);
-                        $(".progress").html(Math.floor((resultIndex/vehiArray.length)*100) + "%");
-                        setTimeout(function(){searchNext()}, 1000);
+                        $(".progress").html(Math.floor((((resultIndex*3)+altIndex)/(vehiArray.length*3))*100) + "%");
+                        setTimeout(function(){searchAlt()}, 1000);
                     }else{
                         console.log(resultIndex + " : no result");
-                        setTimeout(function(){searchNext()}, 1000);
+                        setTimeout(function(){searchAlt()}, 1000);
                     }
                 },
                 error:function(request,status,error){
                     console.log("code:"+request.status+"\n"+"message:"+request.responseText+"\n"+"error:"+error);
-                    resultIndex--;
+                    altIndex--;
+                    if(altIndex==-1){
+                        altIndex=0;
+                        resultIndex--;
+                    }
                     errorCount++;
                     if(errorCount>50){resultIndex=vehiArray.length}
-                    setTimeout(function(){searchNext()}, 500);
+                    setTimeout(function(){searchAlt()}, 500);
                 }
             });
         };
-
-
-        // 하나가 완료되면 다음 객체의 값을 받아오기
-        function searchNext(){
-            resultIndex++;
-            if(resultIndex<vehiArray.length){
+        function searchAlt(){
+            console.log(altIndex + " : " + resultIndex);
+            altIndex++;
+            if(altIndex==1){
                 searchRoute(vehiArray[resultIndex].currentLocation, rider.currentLocation, rider.desination, vehiArray[resultIndex].desination);
-           }else{
-               console.log("finish!!!");
-               resultIndex=0;
-               errorCount=0;
-               $(".progress").html("100%");
-               $(".map-mask").fadeOut();
-           }
+            }else if(altIndex==2){
+                searchRoute(vehiArray[resultIndex].currentLocation, rider.currentLocation, vehiArray[resultIndex].desination, rider.desination);
+            }else if(altIndex==3){
+                searchRoute(vehiArray[resultIndex].currentLocation, vehiArray[resultIndex].desination, rider.currentLocation, rider.desination);
+            }else{
+                resultIndex++;
+                if(resultIndex<vehiArray.length){
+                    altIndex=0;
+                    searchRoute(vehiArray[resultIndex].currentLocation, rider.currentLocation, rider.desination, vehiArray[resultIndex].desination);
+                }else{
+                    console.log("finish!!!");
+                    altIndex=0;
+                    resultIndex=0;
+                    errorCount=0;
+                    $(".progress").html("100%");
+                    $(".map-mask").fadeOut();
+                }
+            }
         }
 
         // 경로정보로 경로 그리기
@@ -384,7 +402,20 @@
             virtualVectorLayer.styleMap.styles.default.defaultStyle = {
                 pointRadius : 1,
                 strokeColor: "#3cffea",
-                strokeOpacity: 0.2,
+                strokeOpacity: 0.1,
+                strokeWidth: 1,
+                strokeDashstyle: "solid"
+            };
+            map.addLayer(virtualVectorLayer);
+        }
+
+        function drawFinalRoute(route){
+            var jsonForm = new Tmap.Format.GeoJSON({extractStyles:false}).read(route);
+            virtualVectorLayer.addFeatures(jsonForm);
+            virtualVectorLayer.styleMap.styles.default.defaultStyle = {
+                pointRadius : 1,
+                strokeColor: "#3cffea",
+                strokeOpacity: 0.9,
                 strokeWidth: 2,
                 strokeDashstyle: "solid"
             };
