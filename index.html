@@ -344,7 +344,7 @@
                 success:function(response){
                     console.log(response.properties.totalTime);
                     if(response) {
-                        console.log(resultIndex + " : sucess");
+                        console.log(altIndex + " : " + resultIndex + " : sucess");
                         if(response.properties.totalTime<vehiArray[resultIndex].totalTime || vehiArray[resultIndex].totalTime==undefined){
                             vehiArray[resultIndex].route = response;
                             vehiArray[resultIndex].totalTime = response.properties.totalTime;
@@ -371,7 +371,6 @@
             });
         };
         function searchAlt(){
-            console.log(altIndex + " : " + resultIndex);
             altIndex++;
             if(altIndex==1){
                 searchRoute(vehiArray[resultIndex].currentLocation, rider.currentLocation, rider.desination, vehiArray[resultIndex].desination);
@@ -391,6 +390,7 @@
                     errorCount=0;
                     $(".progress").html("100%");
                     $(".map-mask").fadeOut();
+                    selectFinalRoute();
                 }
             }
         }
@@ -409,14 +409,34 @@
             map.addLayer(virtualVectorLayer);
         }
 
+        var finalVehicle;
+
+        // 가장 짧은 시간 경로 선택하기
+        function selectFinalRoute(){
+            var index=0;
+            var time=0;
+            for(var i=0 ; i<vehiArray.length ; i++){
+                if(time==0){
+                    time = vehiArray[index].totalTime;
+                }
+                if(time>vehiArray[index].totalTime){
+                    index = i;
+                    time = vehiArray[index].totalTime;
+                }
+            }
+
+            finalVehicle = index;
+            drawFinalRoute(vehiArray[finalVehicle].route);
+        }
+
         function drawFinalRoute(route){
             var jsonForm = new Tmap.Format.GeoJSON({extractStyles:false}).read(route);
             virtualVectorLayer.addFeatures(jsonForm);
             virtualVectorLayer.styleMap.styles.default.defaultStyle = {
                 pointRadius : 1,
-                strokeColor: "#3cffea",
+                strokeColor: "#7200c7",
                 strokeOpacity: 0.9,
-                strokeWidth: 2,
+                strokeWidth: 3,
                 strokeDashstyle: "solid"
             };
             map.addLayer(virtualVectorLayer);
