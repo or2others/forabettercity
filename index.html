@@ -3,7 +3,7 @@
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
     <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1.0, user-scalable=no"/>
-    <title>Facade View</title>
+    <title>For a better city</title>
     <!-- CSS  -->
     <link href="css/swiper.css" type="text/css" rel="stylesheet"/>
     <link href="css/style.css" type="text/css" rel="stylesheet"/>
@@ -33,6 +33,7 @@
         var requestMarkerLayer;
         var vectorLayer;
         var virtualVectorLayer;
+        var finalVectorLayer;
         var maskLayer;
         var tData;
         var size;
@@ -53,7 +54,7 @@
             });
 
             var lonlat = new Tmap.LonLat(14129410, 4507355)
-            map.setCenter(lonlat, 14);
+            map.setCenter(lonlat, 15);
             map.events.register("click", map, createNewRequest);
 
 
@@ -61,6 +62,7 @@
             tData = new Tmap.TData();
             vectorLayer = new Tmap.Layer.Vector("vectorLayerID");
             virtualVectorLayer = new Tmap.Layer.Vector("vectorLayerID");
+            finalVectorLayer = new Tmap.Layer.Vector("vectorLayerID");
             markerLayer = new Tmap.Layer.Markers();
             requestMarkerLayer = new Tmap.Layer.Markers();
 
@@ -134,6 +136,11 @@
             this.route;
             this.routeVector;
             this.totalTime;
+            this.waitingTime;
+            this.movingTime;
+            this.node1;
+            this.node2;
+            this.node3;
         }
 
         Vehicle.prototype = {
@@ -259,6 +266,9 @@
         function Rider(index){
             this.currentLocation;
             this.destination;
+            this.waitingTime;
+            this.movingTime;
+            this.pare;
         }
 
         var rider = new Rider();
@@ -291,16 +301,233 @@
             requestMarkerLayer.clearMarkers();
         }
 
-        var altIndex = 0;
+        var finalVehicle;
 
         // 새로운 요청을 배차하기
         function requestDispatch(){
-            searchAlt();
+            requestNextNode();
             $(".progress").html("0%");
             $(".map-mask").fadeIn();
         }
 
-        // 다중 경유지 적용해서 확인할 수 있게 수정필요
+
+        // 개별 노드의 경로를 요청
+        var nodeResult = new Array();
+
+        function requestNodeRoute(start, end){
+            $.ajax({
+                method:"POST",
+                headers : headers,
+                url:"https://api2.sktelecom.com/tmap/routes?version=2&format=json",
+                    data:{
+                    startX : start.lon,
+                    startY : start.lat,
+                    endX : end.lon,
+                    endY : end.lat,
+                    reqCoordType : "EPSG3857",
+                    resCoordType : "EPSG3857",
+                    searchOption : 0
+                },
+                success:function(response){
+                    if(response) {
+                        console.log(resultIndex + "-" +nodeResult.length + " : success!");
+                        $(".progress").html(Math.floor((((resultIndex*6)+nodeResult.length)/(vehiArray.length*6))*100) + "%");
+                        nodeResult.push(response);
+                        setTimeout(function(){searchRoute()}, 200);
+                    }else{
+                        console.log(resultIndex + "-" +nodeResult.length + " : no result");
+                        $(".progress").html(Math.floor((((resultIndex*6)+nodeResult.length)/(vehiArray.length*6))*100) + "%");
+                        nodeResult.push("no result");
+                        setTimeout(function(){searchRoute()}, 200);
+                    }
+                },
+                error:function(request, status, error){
+                    console.log(resultIndex + "-" +nodeResult.length + " : error");
+                    console.log("message:"+request.responseText);
+                    errorCount++;
+                    if(errorCount>50){resultIndex=vehiArray.length}
+                    setTimeout(function(){searchRoute()}, 500);
+                }
+            })
+        };
+
+        // 다음 단계의 경유지 경로 검색
+        function searchRoute(){
+            if(resultIndex>=vehiArray.length){
+                console.log("finish!");
+                resultIndex=0;
+                errorCount=0;
+                $(".progress").html("100%");
+                $(".map-mask").fadeOut();
+                selectFinalVehicle();
+            }else{
+                if(nodeResult.length>6){
+                    findRoute();
+                    resultIndex++;
+                    searchRoute();
+                }else{
+                    requestNextNode();
+                }
+            }
+        }
+
+        // 다음 노드의 경로를 검색
+        function requestNextNode(){
+            switch(nodeResult.length){
+                // 0: start - end
+                // 1: start - via1
+                // 2: end - via1
+                // 3: end - via2
+                // 4: via1 - end
+                // 5: via1 - via2
+                // 6: via2 - end
+                case 0:
+                    requestNodeRoute(vehiArray[resultIndex].currentLocation, vehiArray[resultIndex].desination);
+                    break;
+                case 1:
+                    requestNodeRoute(vehiArray[resultIndex].currentLocation, rider.currentLocation);
+                    break;
+                case 2:
+                    requestNodeRoute(vehiArray[resultIndex].desination, rider.currentLocation);
+                    break;
+                case 3:
+                    requestNodeRoute(vehiArray[resultIndex].desination, rider.desination);
+                    break;
+                case 4:
+                    requestNodeRoute(rider.currentLocation, vehiArray[resultIndex].desination);
+                    break;
+                case 5:
+                    requestNodeRoute(rider.currentLocation, rider.desination);
+                    break;
+                case 6:
+                    requestNodeRoute(rider.desination, vehiArray[resultIndex].desination);
+                    break;
+            }
+        }
+
+
+        // 하나의 차량에서 최적의 경로를 선택하기
+        function findRoute(){
+            var index =1;
+            var fastTime;
+            // 0 > 2 > 5
+            var time1=0;
+            time1 += nodeResult[0].features[0].properties.totalTime;
+            time1 += nodeResult[2].features[0].properties.totalTime;
+            time1 += nodeResult[5].features[0].properties.totalTime;
+            fastTime=time1;
+
+            // 1 > 4 > 3
+            var time2=0;
+            time2 += nodeResult[1].features[0].properties.totalTime;
+            time2 += nodeResult[4].features[0].properties.totalTime;
+            time2 += nodeResult[3].features[0].properties.totalTime;
+            if(time2<fastTime){
+                index=2;
+                fastTime=time2;
+            }
+
+            // 1 > 5 > 6
+            var time3=0;
+            time3 += nodeResult[1].features[0].properties.totalTime;
+            time3 += nodeResult[5].features[0].properties.totalTime;
+            time3 += nodeResult[6].features[0].properties.totalTime;
+            if(time3<fastTime){
+                index=3;
+                fastTime=time3;
+            }
+
+            switch(index){
+                case 1:
+                    vehiArray[resultIndex].waitingTime            = nodeResult[0].features[0].properties.totalTime+nodeResult[2].features[0].properties.totalTime;
+                    vehiArray[resultIndex].movingTime             = nodeResult[5].features[0].properties.totalTime;
+                    vehiArray[resultIndex].node1 = nodeResult[0];
+                    vehiArray[resultIndex].node2 = nodeResult[2];
+                    vehiArray[resultIndex].node3 = nodeResult[5];
+                    drawVirtualRoute(nodeResult[0]);
+                    drawVirtualRoute(nodeResult[2]);
+                    drawVirtualRoute(nodeResult[5]);
+                    break;
+                case 2:
+                    vehiArray[resultIndex].waitingTime            = nodeResult[1].features[0].properties.totalTime;
+                    vehiArray[resultIndex].movingTime             = nodeResult[4].features[0].properties.totalTime+nodeResult[3].features[0].properties.totalTime;
+                    vehiArray[resultIndex].node1 = nodeResult[1];
+                    vehiArray[resultIndex].node2 = nodeResult[4];
+                    vehiArray[resultIndex].node3 = nodeResult[3];
+                    drawVirtualRoute(nodeResult[1]);
+                    drawVirtualRoute(nodeResult[4]);
+                    drawVirtualRoute(nodeResult[3]);
+                    break;
+                case 3:
+                    vehiArray[resultIndex].waitingTime            = nodeResult[1].features[0].properties.totalTime;
+                    vehiArray[resultIndex].movingTime             = nodeResult[5].features[0].properties.totalTime;
+                    vehiArray[resultIndex].node1 = nodeResult[1];
+                    vehiArray[resultIndex].node2 = nodeResult[5];
+                    vehiArray[resultIndex].node3 = nodeResult[6];
+                    drawVirtualRoute(nodeResult[1]);
+                    drawVirtualRoute(nodeResult[5]);
+                    drawVirtualRoute(nodeResult[6]);
+                    break;
+            }
+            vehiArray[resultIndex].totalTime = fastTime;
+            console.log("waiting : "+ vehiArray[resultIndex].waitingTime + ", moving : "+ vehiArray[resultIndex].movingTime + ", Total : "+ fastTime);
+            nodeResult = new Array();
+        }
+        // 가장 짧은 시간 차량 선택하기
+        function selectFinalVehicle(){
+            var index=0;
+            var time=0;
+            for(var i=0 ; i<vehiArray.length ; i++){
+                if(time==0){
+                    time = vehiArray[index].totalTime;
+                }
+                if(time>vehiArray[index].totalTime){
+                    index = i;
+                    time = vehiArray[index].totalTime;
+                }
+            }
+            console.log(index);
+            finalVehicle = index;
+            drawFinalRoute(finalVehicle);
+        }
+
+        // 경로정보로 경로 그리기
+        function drawVirtualRoute(route){
+            var jsonForm = new Tmap.Format.GeoJSON({extractStyles:false}).read(route);
+            virtualVectorLayer.addFeatures(jsonForm);
+            virtualVectorLayer.styleMap.styles.default.defaultStyle = {
+                pointRadius : 1,
+                strokeColor: "#3cffea",
+                strokeOpacity: 0.1,
+                strokeWidth: 1,
+                strokeDashstyle: "solid"
+            };
+            map.addLayer(virtualVectorLayer);
+        }
+
+        function drawFinalRoute(index){
+            var jsonForm = new Tmap.Format.GeoJSON({extractStyles:false}).read(vehiArray[index].node1);
+            finalVectorLayer.addFeatures(jsonForm);
+            finalVectorLayer.styleMap.styles.default.defaultStyle = {
+                pointRadius : 1,
+                strokeColor: "#7200c7",
+                strokeOpacity: 0.9,
+                strokeWidth: 3,
+                strokeDashstyle: "solid"
+            };
+            map.addLayer(finalVectorLayer);
+            jsonForm = new Tmap.Format.GeoJSON({extractStyles:false}).read(vehiArray[index].node2);
+            finalVectorLayer.addFeatures(jsonForm);
+            map.addLayer(finalVectorLayer);
+            var jsonForm = new Tmap.Format.GeoJSON({extractStyles:false}).read(vehiArray[index].node3);
+            finalVectorLayer.addFeatures(jsonForm);
+            map.addLayer(finalVectorLayer);
+        }
+
+
+        // 지금은 사용안함
+        /*
+        var altIndex = 0;
         function searchRoute(start, via1, via2, via3){
             var startX = String(start.lon);
             var startY = String(start.lat);
@@ -390,81 +617,11 @@
                     errorCount=0;
                     $(".progress").html("100%");
                     $(".map-mask").fadeOut();
-                    selectFinalRoute();
+                    selectFinalVehicle();
                 }
             }
         }
-
-        // 경로정보로 경로 그리기
-        function drawVirtualRoute(route){
-            var jsonForm = new Tmap.Format.GeoJSON({extractStyles:false}).read(route);
-            virtualVectorLayer.addFeatures(jsonForm);
-            virtualVectorLayer.styleMap.styles.default.defaultStyle = {
-                pointRadius : 1,
-                strokeColor: "#3cffea",
-                strokeOpacity: 0.1,
-                strokeWidth: 1,
-                strokeDashstyle: "solid"
-            };
-            map.addLayer(virtualVectorLayer);
-        }
-
-        var finalVehicle;
-
-        // 가장 짧은 시간 경로 선택하기
-        function selectFinalRoute(){
-            var index=0;
-            var time=0;
-            for(var i=0 ; i<vehiArray.length ; i++){
-                if(time==0){
-                    time = vehiArray[index].totalTime;
-                }
-                if(time>vehiArray[index].totalTime){
-                    index = i;
-                    time = vehiArray[index].totalTime;
-                }
-            }
-            console.log(index);
-            finalVehicle = index;
-            drawFinalRoute(vehiArray[finalVehicle].route);
-        }
-
-        function drawFinalRoute(route){
-            var jsonForm = new Tmap.Format.GeoJSON({extractStyles:false}).read(route);
-            virtualVectorLayer.addFeatures(jsonForm);
-            virtualVectorLayer.styleMap.styles.default.defaultStyle = {
-                pointRadius : 1,
-                strokeColor: "#7200c7",
-                strokeOpacity: 0.9,
-                strokeWidth: 3,
-                strokeDashstyle: "solid"
-            };
-            map.addLayer(virtualVectorLayer);
-        }
-
-        // 수정된 검색 function
-        function compareRoute(start, end, via1, via2){
-            // 1: start - end
-
-            // 2: start - via1
-
-            // 3: end - via1
-
-            // 4: end - via2
-
-            // 5: via1 - end
-
-            // 6: via1 - via2
-
-            // 7: via2 - end
-
-            // 1 > 3 > 6
-
-            // 2 > 5 > 4
-
-            // 2 > 6 > 7
-        }
-
+        */
     </script>
     <script src="https://api2.sktelecom.com/tmap/js?version=1&format=javascript&appKey=8e88ce86-83f7-46b5-9272-16b581b04ae8"></script>
 
