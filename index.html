@@ -424,7 +424,7 @@
                     time = vehiArray[index].totalTime;
                 }
             }
-
+            console.log(index);
             finalVehicle = index;
             drawFinalRoute(vehiArray[finalVehicle].route);
         }
@@ -440,6 +440,29 @@
                 strokeDashstyle: "solid"
             };
             map.addLayer(virtualVectorLayer);
+        }
+
+        // 수정된 검색 function
+        function compareRoute(start, end, via1, via2){
+            // 1: start - end
+
+            // 2: start - via1
+
+            // 3: end - via1
+
+            // 4: end - via2
+
+            // 5: via1 - end
+
+            // 6: via1 - via2
+
+            // 7: via2 - end
+
+            // 1 > 3 > 6
+
+            // 2 > 5 > 4
+
+            // 2 > 6 > 7
         }
 
     </script>
