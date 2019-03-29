@@ -40,3 +40,26 @@ body{
     text-align: center;
     justify-content: center;
 }
+.result-container{
+    position: fixed;
+    width: 100%;
+    bottom: 0px;
+    height: 300px;
+    font-size: 15px;
+    text-align: center;
+    z-index: 10000;
+}
+.result-container .title{
+    font-size: 2em;
+    font-weight: 600;
+}
+.result-container .contents{
+    margin-right: 40px;
+    display: none;
+}
+.result-container .contents .type{
+    color: rgba(250,250,250,0.3);
+}
+.result-dispatch{
+    font-weight: 400;
+}
