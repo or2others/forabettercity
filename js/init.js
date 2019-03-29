@@ -10,7 +10,7 @@ var maskLayer;
 var tData;
 var size;
 var offset;
-var caIcon;
+var carIcon;
 var destIcon;
 var resultIndex = 0;
 var errorCount = 0;
@@ -25,7 +25,7 @@ function initMap(){
         div:'map'
     });
 
-    var lonlat = new Tmap.LonLat(14129410, 4507355)
+    var lonlat = new Tmap.LonLat(14129410, 4507355);
     map.setCenter(lonlat, 15);
     map.events.register("click", map, createNewRequest);
 
@@ -194,8 +194,8 @@ function requestByAjax(index){
                 setTimeout(function(){requestNext()}, 100);
             }
         },
-        error:function(){
-            console.log(resultIndex + " : error");
+        error:function(request,status,error){
+            console.log("message:"+request.responseText);
             resultIndex--;
             setTimeout(function(){requestNext()}, 500);
         }
@@ -259,6 +259,7 @@ var rider = new Rider();
 function createNewStart(e){
     newRequestFlag=1;
     rider.currentLocation = map.getLonLatFromViewPortPx(e.xy).transform("EPSG:3857", "EPSG:4326");
+    adjustStartPoint(rider.currentLocation);
     var icon = new Tmap.Icon('http://tmapapis.sktelecom.com/upload/tmap/marker/pin_b_m_a.png',{w:24, h:38}, {x: -12, y: -38});
     requestMarker = new Tmap.Marker(rider.currentLocation.transform("EPSG:4326", "EPSG:3857"), icon);
     requestMarkerLayer.addMarker(requestMarker);
@@ -522,7 +523,7 @@ function drawFinalRoute(index){
 }
 
 
-//요금 계산
+// 요금 계산
 function calcualtePare(moving, share){
     if(moving<2000){
         return 3800;
@@ -537,6 +538,45 @@ function calcualtePare(moving, share){
         pare = 3800+0.76*(moving+share*0.6);
         return pare;
     }
+}
+
+// 위치보정
+function adjustStartPoint(location){
+    console.log(location);
+    var busStop;
+    $.ajax({
+        method:"GET",
+        url:"https://api2.sktelecom.com/tmap/pois?version=1&format=json&callback=result",
+        async:false,
+        data:{
+            "searchKeyword" : "버스정류장",
+            "resCoordType" : "WGS84GEO",
+            "reqCoordType" : "WGS84GEO",
+            "searchType" : "all",
+            "searchtypCd" : "R",
+            "centerLon" : location.lon,
+            "centerLat" : location.lat,
+            "multiPoint" : "N",
+            "appKey" : "8e88ce86-83f7-46b5-9272-16b581b04ae8",
+            "radius" : 2,
+            "count" : 10
+        },
+        success:function(response){
+            console.log(response);
+            busStop = new Tmap.LonLat(response.searchPoiInfo.pois.poi[0].frontLon, response.searchPoiInfo.pois.poi[0].frontLat);
+            console.log(busStop);
+
+            var icon = new Tmap.Icon('http://tmapapis.sktelecom.com/upload/tmap/marker/pin_b_m_c.png',{w:24, h:38}, {x: -12, y: -38});
+            requestMarker = new Tmap.Marker(busStop.transform("EPSG:4326", "EPSG:3857"), icon);
+            requestMarkerLayer.addMarker(requestMarker);
+            Rider.currentLocation.lat = response.searchPoiInfo.pois.poi[0].frontLat;
+            Rider.currentLocation.lat = response.searchPoiInfo.pois.poi[0].frontLon;
+        },
+        error:function(request,status,error){
+            console.log("message:"+request.responseText);
+        }
+
+    });
 }
 
 
