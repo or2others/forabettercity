@@ -259,7 +259,7 @@ var rider = new Rider();
 function createNewStart(e){
     newRequestFlag=1;
     rider.currentLocation = map.getLonLatFromViewPortPx(e.xy).transform("EPSG:3857", "EPSG:4326");
-    adjustStartPoint(rider.currentLocation);
+//    adjustStartPoint(rider.currentLocation);
     var icon = new Tmap.Icon('http://tmapapis.sktelecom.com/upload/tmap/marker/pin_b_m_a.png',{w:24, h:38}, {x: -12, y: -38});
     requestMarker = new Tmap.Marker(rider.currentLocation.transform("EPSG:4326", "EPSG:3857"), icon);
     requestMarkerLayer.addMarker(requestMarker);
@@ -434,8 +434,8 @@ function findRoute(){
             drawVirtualRoute(nodeResult[5]);
             break;
         case 2:
-            vehiArray[resultIndex].waitingTime            = nodeResult[1].features[0].properties.totalDistance;
-            vehiArray[resultIndex].movingTime             = nodeResult[4].features[0].properties.totalDistance+nodeResult[3].features[0].properties.totalDistance;
+            vehiArray[resultIndex].waitingTime            = nodeResult[1].features[0].properties.totalTime;
+            vehiArray[resultIndex].movingTime             = nodeResult[4].features[0].properties.totalTime+nodeResult[3].features[0].properties.totalTime;
             vehiArray[resultIndex].node1 = nodeResult[1];
             vehiArray[resultIndex].node2 = nodeResult[4];
             vehiArray[resultIndex].node3 = nodeResult[3];
