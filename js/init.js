@@ -44,11 +44,11 @@ function initMap(){
     };
 
     var pointlist = [];
-        pointlist.push(new Tmap.Geometry.Point(mapBoundary.left, mapBoundary.top).transform("EPSG:4326", "EPSG:3857"));
-        pointlist.push(new Tmap.Geometry.Point(mapBoundary.right, mapBoundary.top).transform("EPSG:4326", "EPSG:3857"));
-        pointlist.push(new Tmap.Geometry.Point(mapBoundary.right, mapBoundary.bottom).transform("EPSG:4326", "EPSG:3857"));
-        pointlist.push(new Tmap.Geometry.Point(mapBoundary.left, mapBoundary.bottom).transform("EPSG:4326", "EPSG:3857"));
-        pointlist.push(new Tmap.Geometry.Point(mapBoundary.left, mapBoundary.top).transform("EPSG:4326", "EPSG:3857"));
+        pointlist.push(new Tmap.Geometry.Point(126, 38).transform("EPSG:4326", "EPSG:3857"));
+        pointlist.push(new Tmap.Geometry.Point(127.5, 38).transform("EPSG:4326", "EPSG:3857"));
+        pointlist.push(new Tmap.Geometry.Point(127.5, 37).transform("EPSG:4326", "EPSG:3857"));
+        pointlist.push(new Tmap.Geometry.Point(126, 37).transform("EPSG:4326", "EPSG:3857"));
+        pointlist.push(new Tmap.Geometry.Point(126, 38).transform("EPSG:4326", "EPSG:3857"));
 
     var square = new Tmap.Geometry.LinearRing(pointlist);
     var squareFeature = new Tmap.Feature.Vector(square, null, maskStyle); // 백터 생성
@@ -70,7 +70,7 @@ function initMap(){
 $(document).ready(function() {
     initMap();
     map.ctrl_nav.disableZoomWheel();
-    map.ctrl_nav.dragPan.deactivate();
+//    map.ctrl_nav.dragPan.deactivate();
 });
 
 function clickMap(e){
@@ -84,6 +84,7 @@ function clickMap(e){
 var vehiArray = new Array();
 
 function createVehiArray(count){
+    mapBoundary = map.getExtent().transform("EPSG:3857", "EPSG:4326");
     for(var i=0 ; i<count ; i++){
         vehiArray.push(addVehicle(i));
     }
@@ -278,9 +279,27 @@ function createNewEnd(e){
 
 // 요청 지우기
 function clearRequest(){
+    resultIndex=0;
     newRequestFlag=0;
     rider = new Rider();
+    nodeResult = new Array();
     requestMarkerLayer.clearMarkers();
+    $.each(vehiArray, function(){
+        this.waitingTime = undefined;
+        this.movingTime = undefined;
+        this.totalTime = undefined;
+        this.shareDistance = undefined;
+        this.movingDistance = undefined;
+        this.node1 = undefined;
+        this.node2 = undefined;
+        this.node3 = undefined;
+    })
+    virtualVectorLayer.destroy();
+    finalVectorLayer.destroy();
+    virtualVectorLayer = new Tmap.Layer.Vector("vectorLayerID");
+    finalVectorLayer = new Tmap.Layer.Vector("vectorLayerID");
+    $(".result-container").find(".contents").hide();
+
 }
 
 var finalVehicle;
