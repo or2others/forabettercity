@@ -181,7 +181,7 @@ function requestByAjax(index){
     $.ajax({
         method:"POST",
         headers : headers,
-        url:"https://api2.sktelecom.com/tmap/routes?version=2&format=json",
+        url:"https://api2.sktelecom.com/tmap/routes?version=1&format=json",
             data:{
             startX : vehiArray[index].currentLocation.lon,
             startY : vehiArray[index].currentLocation.lat,
@@ -189,7 +189,8 @@ function requestByAjax(index){
             endY : vehiArray[index].desination.lat,
             reqCoordType : "EPSG3857",
             resCoordType : "EPSG3857",
-            searchOption : 0
+            searchOption : 0,
+            trafficInfo : "Y"
         },
         success:function(response){
             if(response) {
@@ -339,7 +340,8 @@ function requestNodeRoute(start, end){
             endY : end.lat,
             reqCoordType : "EPSG3857",
             resCoordType : "EPSG3857",
-            searchOption : 0
+            searchOption : 0,
+            trafficInfo : "Y"
         },
         success:function(response){
             if(response) {
@@ -425,16 +427,18 @@ function findRoute(){
     var fastTime;
     // 0 > 2 > 5
     var time1=0;
-    time1 += nodeResult[0].features[0].properties.totalTime;
-    time1 += nodeResult[2].features[0].properties.totalTime;
+    time1 += (nodeResult[0].features[0].properties.totalTime)*1.5;
+    time1 += (nodeResult[2].features[0].properties.totalTime)*0.5;
     time1 += nodeResult[5].features[0].properties.totalTime;
+//    waiting(0+2)/2+moving(5)+new(0)
     fastTime=time1;
 
     // 1 > 4 > 3
     var time2=0;
-    time2 += nodeResult[1].features[0].properties.totalTime;
-    time2 += nodeResult[4].features[0].properties.totalTime;
+    time2 += (nodeResult[1].features[0].properties.totalTime)*1.5;
+    time2 += (nodeResult[4].features[0].properties.totalTime)*2;
     time2 += nodeResult[3].features[0].properties.totalTime;
+//    waiting(1)/2+moving(4+3)+new(1+4)
     if(time2<fastTime){
         index=2;
         fastTime=time2;
@@ -442,9 +446,10 @@ function findRoute(){
 
     // 1 > 5 > 6
     var time3=0;
-    time3 += nodeResult[1].features[0].properties.totalTime;
-    time3 += nodeResult[5].features[0].properties.totalTime;
+    time3 += (nodeResult[1].features[0].properties.totalTime)*1.5;
+    time3 += (nodeResult[5].features[0].properties.totalTime)*2;
     time3 += nodeResult[6].features[0].properties.totalTime;
+//    waiting(1)/2+moving(5)+new(1+5+6)
     if(time3<fastTime){
         index=3;
         fastTime=time3;
@@ -502,11 +507,11 @@ function selectFinalVehicle(){
     var pare=0;
     for(var i=0 ; i<vehiArray.length ; i++){
         if(time==0){
-            time = vehiArray[i].totalTime;
+            time = vehiArray[i].waitingTime/2+vehiArray[i].movingTime+vehiArray[i].redirectTime-vehiArray[i].originalTime;
         }
-        if(time>vehiArray[i].totalTime){
+        if(time>vehiArray[i].waitingTime/2+vehiArray[i].movingTime+vehiArray[i].redirectTime-vehiArray[i].originalTime){
             index = i;
-            time = vehiArray[index].totalTime;
+            time = vehiArray[i].waitingTime/2+vehiArray[i].movingTime+vehiArray[i].redirectTime-vehiArray[i].originalTime;
         }
     }
     console.log(index);
@@ -618,6 +623,17 @@ function adjustPoint(location, format){
     }
     return stationLocation;
 
+}
+
+
+// 차량의 위치를 업데이트 (10분뒤)
+function updateVehicle(){
+    $.each(vehiArray, function(){
+        $.each(this.route.features, function(){
+            console.log(this.geometry.traffic);
+            console.log(this);
+        })
+    })
 }
 
 
