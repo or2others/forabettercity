@@ -89,6 +89,7 @@ function createVehiArray(count){
         vehiArray.push(addVehicle(i));
     }
     $(".result-container").find(".title").html(count + " vehicles are created.");
+    requestByAjax(0);
 }
 
 
@@ -107,7 +108,7 @@ function Vehicle(index){
     this.lon                = (Math.random()*(mapBoundary.bottom-mapBoundary.top)) + mapBoundary.top;
     this.currentLocation    = new Tmap.LonLat(this.lat, this.lon).transform("EPSG:4326", "EPSG:3857");
     this.destination;
-    this.marker     = new Tmap.Marker(this.currentLocation, new Tmap.Icon('/img/car.png', size, offset));
+    this.marker;
     this.selectFlag = false;
     this.route;
     this.routeVector;
@@ -115,6 +116,7 @@ function Vehicle(index){
     this.waitingTime;
     this.movingTime;
     this.originalTime;
+    this.redirectTime;
     this.waitingDistance;
     this.movingDistance;
     this.node1;
@@ -124,7 +126,10 @@ function Vehicle(index){
 
 Vehicle.prototype = {
     initVehicle  : function(){
+        this.currentLocation = adjustPoint(this.currentLocation, 3857);
+        this.marker = new Tmap.Marker(this.currentLocation, new Tmap.Icon('/img/car.png', size, offset));
         this.marker.index = this.index;
+
         markerLayer.addMarker(this.marker);
     },
     initDestination : function(){
@@ -132,6 +137,10 @@ Vehicle.prototype = {
         var lon = (Math.random()*(mapBoundary.bottom-mapBoundary.top)) + mapBoundary.top;
         this.desination = new Tmap.LonLat(lat, lon);
         this.desination.transform("EPSG:4326", "EPSG:3857");
+        this.desination = adjustPoint(this.desination, 3857);
+        var icon = new Tmap.Icon('/img/destination.png',{w:12, h:12});
+        this.marker = new Tmap.Marker(this.desination, icon);
+        markerLayer.addMarker(this.marker);
     },
     requestRoute : function(){
         $.ajax({
@@ -260,7 +269,7 @@ var rider = new Rider();
 function createNewStart(e){
     newRequestFlag=1;
     rider.currentLocation = map.getLonLatFromViewPortPx(e.xy).transform("EPSG:3857", "EPSG:4326");
-//    adjustStartPoint(rider.currentLocation);
+    rider.currentLocation = adjustPoint(rider.currentLocation, 4326);
     var icon = new Tmap.Icon('http://tmapapis.sktelecom.com/upload/tmap/marker/pin_b_m_a.png',{w:24, h:38}, {x: -12, y: -38});
     requestMarker = new Tmap.Marker(rider.currentLocation.transform("EPSG:4326", "EPSG:3857"), icon);
     requestMarkerLayer.addMarker(requestMarker);
@@ -270,6 +279,7 @@ function createNewStart(e){
 function createNewEnd(e){
     newRequestFlag=2;
     rider.desination = map.getLonLatFromViewPortPx(e.xy).transform("EPSG:3857", "EPSG:4326");
+    rider.desination = adjustPoint(rider.desination, 4326);
     var icon = new Tmap.Icon('http://tmapapis.sktelecom.com/upload/tmap/marker/pin_b_m_b.png',{w:24, h:38}, {x: -12, y: -38});
     requestMarker = new Tmap.Marker(rider.desination.transform("EPSG:4326", "EPSG:3857"), icon);
     requestMarkerLayer.addMarker(requestMarker);
@@ -288,6 +298,7 @@ function clearRequest(){
         this.waitingTime = undefined;
         this.movingTime = undefined;
         this.totalTime = undefined;
+        this.redirectTime = undefined;
         this.shareDistance = undefined;
         this.movingDistance = undefined;
         this.node1 = undefined;
@@ -443,6 +454,7 @@ function findRoute(){
         case 1:
             vehiArray[resultIndex].waitingTime            = nodeResult[0].features[0].properties.totalTime+nodeResult[2].features[0].properties.totalTime;
             vehiArray[resultIndex].movingTime             = nodeResult[5].features[0].properties.totalTime;
+            vehiArray[resultIndex].redirectTime           = nodeResult[0].features[0].properties.totalTime;
             vehiArray[resultIndex].node1 = nodeResult[0];
             vehiArray[resultIndex].node2 = nodeResult[2];
             vehiArray[resultIndex].node3 = nodeResult[5];
@@ -455,6 +467,7 @@ function findRoute(){
         case 2:
             vehiArray[resultIndex].waitingTime            = nodeResult[1].features[0].properties.totalTime;
             vehiArray[resultIndex].movingTime             = nodeResult[4].features[0].properties.totalTime+nodeResult[3].features[0].properties.totalTime;
+            vehiArray[resultIndex].redirectTime           = nodeResult[1].features[0].properties.totalTime+nodeResult[4].features[0].properties.totalTime;
             vehiArray[resultIndex].node1 = nodeResult[1];
             vehiArray[resultIndex].node2 = nodeResult[4];
             vehiArray[resultIndex].node3 = nodeResult[3];
@@ -467,6 +480,7 @@ function findRoute(){
         case 3:
             vehiArray[resultIndex].waitingTime            = nodeResult[1].features[0].properties.totalTime;
             vehiArray[resultIndex].movingTime             = nodeResult[5].features[0].properties.totalTime;
+            vehiArray[resultIndex].redirectTime           = nodeResult[1].features[0].properties.totalTime+nodeResult[5].features[0].properties.totalTime+nodeResult[6].features[0].properties.totalTime;
             vehiArray[resultIndex].node1 = nodeResult[1];
             vehiArray[resultIndex].node2 = nodeResult[5];
             vehiArray[resultIndex].node3 = nodeResult[6];
@@ -503,7 +517,7 @@ function selectFinalVehicle(){
     $(".result-container").find(".contents").show();
     $(".result-dispatch").eq(0).html(Math.floor(vehiArray[finalVehicle].waitingTime/60) + " minutes");
     $(".result-dispatch").eq(1).html(Math.floor(vehiArray[finalVehicle].movingTime/60) + " minutes");
-    $(".result-dispatch").eq(2).html(Math.floor((vehiArray[finalVehicle].totalTime-vehiArray[finalVehicle].originalTime)/60) + " minutes");
+    $(".result-dispatch").eq(2).html(Math.floor((vehiArray[finalVehicle].redirectTime-vehiArray[finalVehicle].originalTime)/60) + " minutes");
     $(".result-dispatch").eq(3).html(" ￦"+pare);
 
 }
@@ -559,43 +573,51 @@ function calcualtePare(moving, share){
     }
 }
 
-// 위치보정
-function adjustStartPoint(location){
-    console.log(location);
-    var busStop;
-    $.ajax({
-        method:"GET",
-        url:"https://api2.sktelecom.com/tmap/pois?version=1&format=json&callback=result",
-        async:false,
-        data:{
-            "searchKeyword" : "버스정류장",
-            "resCoordType" : "WGS84GEO",
-            "reqCoordType" : "WGS84GEO",
-            "searchType" : "all",
-            "searchtypCd" : "R",
-            "centerLon" : location.lon,
-            "centerLat" : location.lat,
-            "multiPoint" : "N",
-            "appKey" : "8e88ce86-83f7-46b5-9272-16b581b04ae8",
-            "radius" : 2,
-            "count" : 10
-        },
-        success:function(response){
-            console.log(response);
-            busStop = new Tmap.LonLat(response.searchPoiInfo.pois.poi[0].frontLon, response.searchPoiInfo.pois.poi[0].frontLat);
-            console.log(busStop);
 
-            var icon = new Tmap.Icon('http://tmapapis.sktelecom.com/upload/tmap/marker/pin_b_m_c.png',{w:24, h:38}, {x: -12, y: -38});
-            requestMarker = new Tmap.Marker(busStop.transform("EPSG:4326", "EPSG:3857"), icon);
-            requestMarkerLayer.addMarker(requestMarker);
-            Rider.currentLocation.lat = response.searchPoiInfo.pois.poi[0].frontLat;
-            Rider.currentLocation.lat = response.searchPoiInfo.pois.poi[0].frontLon;
-        },
-        error:function(request,status,error){
-            console.log("message:"+request.responseText);
+// station 정보 리드
+var stationInfo;
+
+$.getJSON('station.json', function(data) {
+    stationInfo = data;
+})
+
+// 위치 보정
+var adjustOption = false;
+
+function adjustPoint(location, format){
+    if(adjustOption==false){
+        return location;
+    }
+
+    if(format==3857){
+        location.transform("EPSG:3857", "EPSG:4326");
+    }
+
+    var lon = location.lon;
+    var lat = location.lat;
+    var dis = 99999999;
+    var min_station;
+
+    $.each(stationInfo, function(){
+
+        var stationLat = Number(this.lat);
+        var stationLon = Number(this.lon);
+        var cur_dis;
+
+        cur_dis = Math.pow((stationLat - lat), 2.0) + Math.pow((stationLon - lon), 2.0);
+
+        if(cur_dis <= dis)
+        {
+            dis = cur_dis;
+            min_station = this;
         }
+    })
+    var stationLocation = new Tmap.LonLat(min_station.lon, min_station.lat);
+    if(format==3857){
+        stationLocation.transform("EPSG:4326", "EPSG:3857");
+    }
+    return stationLocation;
 
-    });
 }
 
 
