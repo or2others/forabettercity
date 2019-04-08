@@ -427,18 +427,18 @@ function findRoute(){
     var fastTime;
     // 0 > 2 > 5
     var time1=0;
-    time1 += (nodeResult[0].features[0].properties.totalTime)*1.5;
-    time1 += (nodeResult[2].features[0].properties.totalTime)*0.5;
+    time1 += (nodeResult[0].features[0].properties.totalTime)*2;
+    time1 += (nodeResult[2].features[0].properties.totalTime);
     time1 += nodeResult[5].features[0].properties.totalTime;
-//    waiting(0+2)/2+moving(5)+new(0)
+//    waiting(0+2)+moving(5)+new(0)
     fastTime=time1;
 
     // 1 > 4 > 3
     var time2=0;
-    time2 += (nodeResult[1].features[0].properties.totalTime)*1.5;
+    time2 += (nodeResult[1].features[0].properties.totalTime)*2;
     time2 += (nodeResult[4].features[0].properties.totalTime)*2;
     time2 += nodeResult[3].features[0].properties.totalTime;
-//    waiting(1)/2+moving(4+3)+new(1+4)
+//    waiting(1)+moving(4+3)+new(1+4)
     if(time2<fastTime){
         index=2;
         fastTime=time2;
@@ -446,10 +446,10 @@ function findRoute(){
 
     // 1 > 5 > 6
     var time3=0;
-    time3 += (nodeResult[1].features[0].properties.totalTime)*1.5;
+    time3 += (nodeResult[1].features[0].properties.totalTime)*2;
     time3 += (nodeResult[5].features[0].properties.totalTime)*2;
     time3 += nodeResult[6].features[0].properties.totalTime;
-//    waiting(1)/2+moving(5)+new(1+5+6)
+//    waiting(1)+moving(5)+new(1+5+6)
     if(time3<fastTime){
         index=3;
         fastTime=time3;
